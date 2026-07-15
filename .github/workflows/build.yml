@@ -9,6 +9,7 @@ permissions:
 jobs:
   build:
     runs-on: ${{ matrix.os }}
+    continue-on-error: ${{ matrix.experimental || false }}
 
     strategy:
       fail-fast: false
@@ -19,12 +20,6 @@ jobs:
             goarch: amd64
             output: SUFFERING-Server-windows-x64.exe
             use_mingw: true
-
-          - os: ubuntu-latest
-            goos: windows
-            goarch: arm64
-            output: SUFFERING-Server-windows-arm64.exe
-            use_mingw_arm64: true
 
           - os: ubuntu-latest
             goos: linux
@@ -41,11 +36,13 @@ jobs:
             goos: darwin
             goarch: amd64
             output: SUFFERING-Server-macos-intel
+            experimental: true
 
           - os: macos-latest
             goos: darwin
             goarch: arm64
             output: SUFFERING-Server-macos-silicon
+            experimental: true
 
     steps:
       - name: Checkout
@@ -57,25 +54,17 @@ jobs:
           go-version: "1.24"
           cache: true
 
-
-      - name: Install Windows x64 Cross-Compiler (MinGW)
+      - name: Install Windows x64 Cross-Compiler (MinGW, with C++ runtime)
         if: matrix.use_mingw == true
         run: |
           sudo apt-get update
-          sudo apt-get install -y gcc-mingw-w64
+          sudo apt-get install -y g++-mingw-w64-x86-64
 
-      - name: Install Windows ARM64 Cross-Compiler
-        if: matrix.use_mingw_arm64 == true
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y gcc-aarch64-w64-mingw32
-
-      - name: Install Linux ARM64 Cross-Compiler
+      - name: Install Linux ARM64 Cross-Compiler (with C++ runtime)
         if: matrix.use_arm_compiler == true
         run: |
           sudo apt-get update
-          sudo apt-get install -y gcc-aarch64-linux-gnu
-
+          sudo apt-get install -y g++-aarch64-linux-gnu
 
       - name: Build
         env:
@@ -83,13 +72,26 @@ jobs:
           GOARCH: ${{ matrix.goarch }}
           CGO_ENABLED: 1
           CC: >-
-            ${{ matrix.use_mingw == true && 'x86_64-w64-mingw32-gcc' || 
-                matrix.use_mingw_arm64 == true && 'aarch64-w64-mingw32-gcc' || 
-                matrix.use_arm_compiler == true && 'aarch64-linux-gnu-gcc' || 
+            ${{ matrix.use_mingw == true && 'x86_64-w64-mingw32-g++' ||
+                matrix.use_arm_compiler == true && 'aarch64-linux-gnu-g++' ||
                 'gcc' }}
         run: |
           mkdir -p dist
 
+          go build \
+            -trimpath \
+            -ldflags="-s -w" \
+            -o dist/${{ matrix.output }}
+
+      - name: Static-link C++ runtime for Windows build
+        if: matrix.use_mingw == true
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: 1
+          CC: x86_64-w64-mingw32-g++
+          CGO_LDFLAGS: -static-libgcc -static-libstdc++
+        run: |
           go build \
             -trimpath \
             -ldflags="-s -w" \
@@ -101,10 +103,10 @@ jobs:
           name: ${{ matrix.output }}
           path: dist/${{ matrix.output }}
 
-
   release:
     needs: build
     runs-on: ubuntu-latest
+    if: ${{ !cancelled() }}
 
     steps:
       - name: Checkout
@@ -139,3 +141,4 @@ jobs:
           files: release/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          
