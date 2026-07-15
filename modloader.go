@@ -1,5 +1,9 @@
 package main
 
+/*
+Copyright © 2026 Syrup Studios>
+*/
+
 import (
 	"fmt"
 	"log"
