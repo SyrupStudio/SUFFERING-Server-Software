@@ -17,15 +17,32 @@ type Config struct {
 	} `yaml:"server"`
 }
 
-func LoadConfig() Config {
+func defaultConfig() Config {
 	cfg := Config{}
 	cfg.Server.Name = "My SUFFERING Server"
 	cfg.Server.Motd = "My SUFFERING Server"
 	cfg.Server.Port = 25666
 	cfg.Server.MaxPlayers = 20
 	cfg.Server.Mods = false
+	return cfg
+}
 
-	file, err := os.Create("config.yaml")
+func LoadConfig() Config {
+	const path = "config.yaml"
+
+	if data, err := os.ReadFile(path); err == nil {
+		var cfg Config
+		if err := yaml.Unmarshal(data, &cfg); err != nil {
+			log.Fatalf("Error parsing config.yaml: %v", err)
+		}
+		return cfg
+	} else if !os.IsNotExist(err) {
+		log.Fatalf("Error reading config.yaml: %v", err)
+	}
+
+	cfg := defaultConfig()
+
+	file, err := os.Create(path)
 	if err != nil {
 		log.Fatalf("Error creating config.yaml: %v", err)
 	}

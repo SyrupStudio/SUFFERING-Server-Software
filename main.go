@@ -16,5 +16,6 @@ func main() {
 	cfg := LoadConfig()
 
 	fmt.Printf("Starting SUFFERING Server: %s on port %d\n", cfg.Server.Name, cfg.Server.Port)
+	LoadMods()
 
 }
