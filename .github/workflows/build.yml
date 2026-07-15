@@ -8,33 +8,42 @@ permissions:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
 
     strategy:
       fail-fast: false
       matrix:
         include:
-          - goos: windows
+          - os: ubuntu-latest
+            goos: windows
             goarch: amd64
             output: SUFFERING-Server-windows-x64.exe
+            use_mingw: true
 
-          - goos: windows
+          - os: ubuntu-latest
+            goos: windows
             goarch: arm64
             output: SUFFERING-Server-windows-arm64.exe
+            use_mingw_arm64: true
 
-          - goos: linux
+          - os: ubuntu-latest
+            goos: linux
             goarch: amd64
             output: SUFFERING-Server-linux-x64
 
-          - goos: linux
+          - os: ubuntu-latest
+            goos: linux
             goarch: arm64
             output: SUFFERING-Server-linux-arm64
+            use_arm_compiler: true
 
-          - goos: darwin
+          - os: macos-latest
+            goos: darwin
             goarch: amd64
             output: SUFFERING-Server-macos-intel
 
-          - goos: darwin
+          - os: macos-latest
+            goos: darwin
             goarch: arm64
             output: SUFFERING-Server-macos-silicon
 
@@ -48,17 +57,36 @@ jobs:
           go-version: "1.24"
           cache: true
 
-      - name: Read version
-        id: version
+
+      - name: Install Windows x64 Cross-Compiler (MinGW)
+        if: matrix.use_mingw == true
         run: |
-          VERSION=$(cat version.txt)
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          sudo apt-get update
+          sudo apt-get install -y gcc-mingw-w64
+
+      - name: Install Windows ARM64 Cross-Compiler
+        if: matrix.use_mingw_arm64 == true
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-w64-mingw32
+
+      - name: Install Linux ARM64 Cross-Compiler
+        if: matrix.use_arm_compiler == true
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu
+
 
       - name: Build
         env:
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
           CGO_ENABLED: 1
+          CC: >-
+            ${{ matrix.use_mingw == true && 'x86_64-w64-mingw32-gcc' || 
+                matrix.use_mingw_arm64 == true && 'aarch64-w64-mingw32-gcc' || 
+                matrix.use_arm_compiler == true && 'aarch64-linux-gnu-gcc' || 
+                'gcc' }}
         run: |
           mkdir -p dist
 
@@ -97,6 +125,7 @@ jobs:
         run: |
           mkdir release
 
+          # Flattens nested folders created by the download-artifact action
           find artifacts -type f -exec cp {} release/ \;
 
           ls -la release
