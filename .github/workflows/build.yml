@@ -54,17 +54,17 @@ jobs:
           go-version: "1.24"
           cache: true
 
-      - name: Install Windows x64 Cross-Compiler (MinGW, with C++ runtime)
+      - name: Install Windows x64 Cross-Compiler
         if: matrix.use_mingw == true
         run: |
           sudo apt-get update
-          sudo apt-get install -y g++-mingw-w64-x86-64
+          sudo apt-get install -y gcc-mingw-w64-x86-64
 
-      - name: Install Linux ARM64 Cross-Compiler (with C++ runtime)
+      - name: Install Linux ARM64 Cross-Compiler
         if: matrix.use_arm_compiler == true
         run: |
           sudo apt-get update
-          sudo apt-get install -y g++-aarch64-linux-gnu
+          sudo apt-get install -y gcc-aarch64-linux-gnu
 
       - name: Build
         env:
@@ -72,12 +72,11 @@ jobs:
           GOARCH: ${{ matrix.goarch }}
           CGO_ENABLED: 1
           CC: >-
-            ${{ matrix.use_mingw == true && 'x86_64-w64-mingw32-g++' ||
-                matrix.use_arm_compiler == true && 'aarch64-linux-gnu-g++' ||
+            ${{ matrix.use_mingw == true && 'x86_64-w64-mingw32-gcc' ||
+                matrix.use_arm_compiler == true && 'aarch64-linux-gnu-gcc' ||
                 'gcc' }}
         run: |
           mkdir -p dist
-
           go build \
             -trimpath \
             -ldflags="-s -w" \
@@ -89,7 +88,7 @@ jobs:
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
           CGO_ENABLED: 1
-          CC: x86_64-w64-mingw32-g++
+          CC: x86_64-w64-mingw32-gcc
           CGO_LDFLAGS: -static-libgcc -static-libstdc++
         run: |
           go build \
@@ -126,11 +125,7 @@ jobs:
       - name: Prepare release files
         run: |
           mkdir release
-
-          # Flattens nested folders created by the download-artifact action
           find artifacts -type f -exec cp {} release/ \;
-
-          ls -la release
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
